@@ -1,15 +1,15 @@
 use std::{error::Error, sync::Arc};
 
-use abi_stable::std_types::{RBoxError, RSliceMut};
+use abi_stable::std_types::{RBoxError, RResult, RSliceMut};
 use datafusion::{
     arrow::{
         array::{
             ArrowPrimitiveType, BooleanArray, Date32Array, DurationNanosecondArray, Float16Array,
-            Float64Array, PrimitiveArray, RecordBatch,
+            Float64Array, Int64Array, PrimitiveArray, RecordBatch,
         },
         compute,
         datatypes::{
-            DataType, Date32Type, Date64Type, Decimal128Type, Decimal256Type,
+            DataType, Date32Type, Date64Type, Decimal128Type, Decimal256Type, DecimalType,
             DurationMicrosecondType, DurationMillisecondType, DurationNanosecondType,
             DurationSecondType, Float16Type, Float32Type, Float64Type, Int16Type, Int32Type,
             Int64Type, Int8Type, IntervalDayTimeType, IntervalMonthDayNanoType,
@@ -26,10 +26,13 @@ use datafusion::{
         case, col, conditional_expressions::CaseBuilder, create_udf, when, ColumnarValue, Expr,
         ScalarUDF, SortExpr,
     },
+    scalar::ScalarValue,
 };
 use steel::{
-    rvals::Custom,
-    steel_vm::ffi::{FFIModule, FFIValue, HostRuntimeFunction, IntoFFIVal, RegisterFFIFn},
+    rvals::{Custom, CustomType, FromSteelVal, IntoSteelVal},
+    steel_vm::ffi::{
+        as_underlying_ffi_type, FFIModule, FFIValue, HostRuntimeFunction, IntoFFIVal, RegisterFFIFn,
+    },
 };
 
 use datafusion::common::DataFusionError;
@@ -519,74 +522,23 @@ fn datafusion_module() -> FFIModule {
     );
 
     module
-        .register_value(
-            "Null",
-            ArrowDataType(DataType::Null).into_ffi_val().unwrap(),
-        )
-        .register_value(
-            "Boolean",
-            ArrowDataType(DataType::Boolean).into_ffi_val().unwrap(),
-        )
-        .register_value(
-            "Int8",
-            ArrowDataType(DataType::Int8).into_ffi_val().unwrap(),
-        )
-        .register_value(
-            "Int16",
-            ArrowDataType(DataType::Int16).into_ffi_val().unwrap(),
-        )
-        .register_value(
-            "Int32",
-            ArrowDataType(DataType::Int32).into_ffi_val().unwrap(),
-        )
-        .register_value(
-            "Int64",
-            ArrowDataType(DataType::Int64).into_ffi_val().unwrap(),
-        )
-        .register_value(
-            "UInt8",
-            ArrowDataType(DataType::UInt8).into_ffi_val().unwrap(),
-        )
-        .register_value(
-            "UInt16",
-            ArrowDataType(DataType::UInt16).into_ffi_val().unwrap(),
-        )
-        .register_value(
-            "UInt32",
-            ArrowDataType(DataType::UInt32).into_ffi_val().unwrap(),
-        )
-        .register_value(
-            "UInt64",
-            ArrowDataType(DataType::UInt64).into_ffi_val().unwrap(),
-        )
-        .register_value(
-            "Float16",
-            ArrowDataType(DataType::Float16).into_ffi_val().unwrap(),
-        )
-        .register_value(
-            "Float32",
-            ArrowDataType(DataType::Float32).into_ffi_val().unwrap(),
-        )
-        .register_value(
-            "Float64",
-            ArrowDataType(DataType::Float64).into_ffi_val().unwrap(),
-        )
-        .register_value(
-            "Binary",
-            ArrowDataType(DataType::Binary).into_ffi_val().unwrap(),
-        )
-        .register_value(
-            "LargeBinary",
-            ArrowDataType(DataType::LargeBinary).into_ffi_val().unwrap(),
-        )
-        .register_value(
-            "Utf8",
-            ArrowDataType(DataType::Utf8).into_ffi_val().unwrap(),
-        )
-        .register_value(
-            "LargeUtf8",
-            ArrowDataType(DataType::LargeUtf8).into_ffi_val().unwrap(),
-        );
+        .register_fn("Null", || ArrowDataType(DataType::Null))
+        .register_fn("Boolean", || ArrowDataType(DataType::Boolean))
+        .register_fn("Int8", || ArrowDataType(DataType::Int8))
+        .register_fn("Int16", || ArrowDataType(DataType::Int16))
+        .register_fn("Int32", || ArrowDataType(DataType::Int32))
+        .register_fn("Int64", || ArrowDataType(DataType::Int64))
+        .register_fn("UInt8", || ArrowDataType(DataType::UInt8))
+        .register_fn("UInt16", || ArrowDataType(DataType::UInt16))
+        .register_fn("UInt32", || ArrowDataType(DataType::UInt32))
+        .register_fn("UInt64", || ArrowDataType(DataType::UInt64))
+        .register_fn("Float16", || ArrowDataType(DataType::Float16))
+        .register_fn("Float32", || ArrowDataType(DataType::Float32))
+        .register_fn("Float64", || ArrowDataType(DataType::Float64))
+        .register_fn("Binary", || ArrowDataType(DataType::Binary))
+        .register_fn("LargeBinary", || ArrowDataType(DataType::LargeBinary))
+        .register_fn("Utf8", || ArrowDataType(DataType::Utf8))
+        .register_fn("LargeUtf8", || ArrowDataType(DataType::LargeUtf8));
 
     module.register_fn("define-udf", define_udf);
 
@@ -601,6 +553,11 @@ fn datafusion_module() -> FFIModule {
         .register_fn("arrow-min", arrow_min)
         .register_fn("arrow-sum", arrow_sum);
 
+    module.register_fn(
+        "arrow-array-as-array-type",
+        SColumnarValue::as_primitive_array,
+    );
+
     module
 }
 
@@ -610,8 +567,61 @@ pub fn build_module() -> FFIModule {
     datafusion_module()
 }
 
+#[derive(Clone)]
 struct SColumnarValue(ColumnarValue);
 impl Custom for SColumnarValue {}
+
+impl SColumnarValue {
+    fn as_primitive_array(&self, kind: ArrowDataType) -> Option<SPrimitiveArrayKind> {
+        match &self.0 {
+            ColumnarValue::Array(a) => match kind.0 {
+                DataType::Null => todo!(),
+                DataType::Boolean => todo!(),
+                DataType::Int8 => todo!(),
+                DataType::Int16 => todo!(),
+                DataType::Int32 => todo!(),
+                DataType::Int64 => a
+                    .as_any()
+                    .downcast_ref::<Int64Array>()
+                    .map(|x| SPrimitiveArrayKind::Int64Array(SPrimitiveArray(x.clone()))),
+                DataType::UInt8 => todo!(),
+                DataType::UInt16 => todo!(),
+                DataType::UInt32 => todo!(),
+                DataType::UInt64 => todo!(),
+                DataType::Float16 => todo!(),
+                DataType::Float32 => todo!(),
+                DataType::Float64 => todo!(),
+                DataType::Timestamp(_, _) => todo!(),
+                DataType::Date32 => todo!(),
+                DataType::Date64 => todo!(),
+                DataType::Time32(_) => todo!(),
+                DataType::Time64(_) => todo!(),
+                DataType::Duration(_) => todo!(),
+                DataType::Interval(_) => todo!(),
+                DataType::Binary => todo!(),
+                DataType::FixedSizeBinary(_) => todo!(),
+                DataType::LargeBinary => todo!(),
+                DataType::BinaryView => todo!(),
+                DataType::Utf8 => todo!(),
+                DataType::LargeUtf8 => todo!(),
+                DataType::Utf8View => todo!(),
+                DataType::List(_) => todo!(),
+                DataType::ListView(_) => todo!(),
+                DataType::FixedSizeList(_, _) => todo!(),
+                DataType::LargeList(_) => todo!(),
+                DataType::LargeListView(_) => todo!(),
+                DataType::Struct(_) => todo!(),
+                DataType::Union(_, _) => todo!(),
+                DataType::Dictionary(_, _) => todo!(),
+                DataType::Decimal128(_, _) => todo!(),
+                DataType::Decimal256(_, _) => todo!(),
+                DataType::Map(_, _) => todo!(),
+                DataType::RunEndEncoded(_, _) => todo!(),
+            },
+            ColumnarValue::Scalar(_) => todo!(),
+        }
+    }
+}
 
 fn define_udf(
     session_ctx: &SSessionContext,
@@ -623,26 +633,78 @@ fn define_udf(
     let udf = create_udf(
         &name,
         types.into_iter().map(|x| x.0).collect(),
-        Arc::new(return_type.0),
+        Arc::new(return_type.0.clone()),
         datafusion::logical_expr::Volatility::Immutable,
         Arc::new(move |args| {
-            let first = &args[0];
+            let mut columns = args
+                .into_iter()
+                .map(|x| SColumnarValue(x.clone()).into_ffi_val().unwrap())
+                .collect::<Vec<_>>();
 
-            if let ColumnarValue::Array(a) = first {
-                let base = a
-                    .as_any()
-                    .downcast_ref::<Float64Array>()
-                    .expect("cast failed");
+            // TODO: Don't just return a null scalar value
+            let res = match func.call(RSliceMut::from_mut_slice(&mut columns)) {
+                RResult::ROk(res) => res,
+                RResult::RErr(e) => return Err(DataFusionError::External(e.into())),
+            };
 
-                todo!()
+            match res {
+                // TODO: Check that the return type matches appropriately
+                FFIValue::BoolV(b) => Ok(ColumnarValue::Scalar(ScalarValue::Boolean(Some(b)))),
+                FFIValue::NumV(_) => todo!(),
+                FFIValue::IntV(i) => match return_type.0 {
+                    DataType::Int8 => Ok(ColumnarValue::Scalar(ScalarValue::Int8(Some(i as _)))),
+                    DataType::Int16 => Ok(ColumnarValue::Scalar(ScalarValue::Int16(Some(i as _)))),
+                    DataType::Int32 => Ok(ColumnarValue::Scalar(ScalarValue::Int32(Some(i as _)))),
+                    DataType::Int64 => Ok(ColumnarValue::Scalar(ScalarValue::Int64(Some(i as _)))),
+                    DataType::UInt8 => Ok(ColumnarValue::Scalar(ScalarValue::UInt8(Some(i as _)))),
+                    DataType::UInt16 => {
+                        Ok(ColumnarValue::Scalar(ScalarValue::UInt16(Some(i as _))))
+                    }
+                    DataType::UInt32 => {
+                        Ok(ColumnarValue::Scalar(ScalarValue::UInt32(Some(i as _))))
+                    }
+                    DataType::UInt64 => {
+                        Ok(ColumnarValue::Scalar(ScalarValue::UInt64(Some(i as _))))
+                    }
+                    _ => {
+                        return Err(DataFusionError::External(
+                            format!("UDF return type didn't match declared type").into(),
+                        ))
+                    }
+                },
+                FFIValue::Void => Ok(ColumnarValue::Scalar(datafusion::scalar::ScalarValue::Null)),
+                FFIValue::StringV(s) => Ok(ColumnarValue::Scalar(ScalarValue::new_utf8(
+                    s.into_string(),
+                ))),
+                FFIValue::Vector(_) => todo!(),
+                FFIValue::CharV { c } => Ok(ColumnarValue::Scalar(ScalarValue::new_utf8({
+                    let mut s = String::new();
+                    s.push(c);
+                    s
+                }))),
+                FFIValue::Custom { mut custom } => {
+                    if let Some(inner) = as_underlying_ffi_type::<SColumnarValue>(&mut custom.inner)
+                    {
+                        Ok(inner.clone().0)
+                    } else if let Some(inner) =
+                        as_underlying_ffi_type::<ArrowPrimitiveValue>(&mut custom.inner)
+                    {
+                        Ok(inner.into_columnar())
+                    } else {
+                        return Err(DataFusionError::External(
+                            format!("UDF returned a non scalar value: {:?}", custom.display())
+                                .into(),
+                        ));
+                    }
+                }
+                FFIValue::HashMap(_) => todo!(),
+                FFIValue::ByteVector(_) => todo!(),
+                _ => {
+                    return Err(DataFusionError::External(
+                        format!("UDF returned a non scalar value").into(),
+                    ));
+                }
             }
-
-            func.call(RSliceMut::from_mut_slice(&mut [FFIValue::Void]))
-                .unwrap();
-
-            Ok(datafusion::logical_expr::ColumnarValue::Scalar(
-                datafusion::scalar::ScalarValue::Null,
-            ))
         }),
     );
     // Register the UDF so that we can... use it?
@@ -686,6 +748,7 @@ pub type SUInt16Array = SPrimitiveArray<UInt16Type>;
 pub type SUInt32Array = SPrimitiveArray<UInt32Type>;
 pub type SUInt64Array = SPrimitiveArray<UInt64Type>;
 
+#[derive(Clone, Copy)]
 pub enum ArrowPrimitiveValue {
     Date32(<Date32Type as ArrowPrimitiveType>::Native),
     Date64(<Date64Type as ArrowPrimitiveType>::Native),
@@ -717,6 +780,81 @@ pub enum ArrowPrimitiveValue {
     UInt16(<UInt16Type as ArrowPrimitiveType>::Native),
     UInt32(<UInt32Type as ArrowPrimitiveType>::Native),
     UInt64(<UInt64Type as ArrowPrimitiveType>::Native),
+}
+
+impl ArrowPrimitiveValue {
+    fn into_columnar(self) -> ColumnarValue {
+        match self {
+            ArrowPrimitiveValue::Date32(i) => ColumnarValue::Scalar(ScalarValue::Date32(Some(i))),
+            ArrowPrimitiveValue::Date64(i) => ColumnarValue::Scalar(ScalarValue::Date64(Some(i))),
+            ArrowPrimitiveValue::Decimal128(d) => ColumnarValue::Scalar(ScalarValue::Decimal128(
+                Some(d),
+                <Decimal128Type as DecimalType>::MAX_PRECISION,
+                <Decimal128Type as DecimalType>::MAX_SCALE,
+            )),
+            ArrowPrimitiveValue::Decimal256(d) => ColumnarValue::Scalar(ScalarValue::Decimal256(
+                Some(d),
+                <Decimal256Type as DecimalType>::MAX_PRECISION,
+                <Decimal256Type as DecimalType>::MAX_SCALE,
+            )),
+            ArrowPrimitiveValue::DurationMicrosecond(d) => {
+                ColumnarValue::Scalar(ScalarValue::DurationMicrosecond(Some(d)))
+            }
+            ArrowPrimitiveValue::DurationMillisecond(d) => {
+                ColumnarValue::Scalar(ScalarValue::DurationMillisecond(Some(d)))
+            }
+            ArrowPrimitiveValue::DurationNanosecond(d) => {
+                ColumnarValue::Scalar(ScalarValue::DurationNanosecond(Some(d)))
+            }
+            ArrowPrimitiveValue::DurationSecond(d) => {
+                ColumnarValue::Scalar(ScalarValue::DurationSecond(Some(d)))
+            }
+            ArrowPrimitiveValue::Float16(f) => ColumnarValue::Scalar(ScalarValue::Float16(Some(f))),
+            ArrowPrimitiveValue::Float32(f) => ColumnarValue::Scalar(ScalarValue::Float32(Some(f))),
+            ArrowPrimitiveValue::Float64(f) => ColumnarValue::Scalar(ScalarValue::Float64(Some(f))),
+            ArrowPrimitiveValue::Int8(i) => ColumnarValue::Scalar(ScalarValue::Int8(Some(i))),
+            ArrowPrimitiveValue::Int16(i) => ColumnarValue::Scalar(ScalarValue::Int16(Some(i))),
+            ArrowPrimitiveValue::Int32(i) => ColumnarValue::Scalar(ScalarValue::Int32(Some(i))),
+            ArrowPrimitiveValue::Int64(i) => ColumnarValue::Scalar(ScalarValue::Int64(Some(i))),
+            ArrowPrimitiveValue::IntervalDayTime(i) => {
+                ColumnarValue::Scalar(ScalarValue::IntervalDayTime(Some(i)))
+            }
+            ArrowPrimitiveValue::IntervalMonthDayNano(i) => {
+                ColumnarValue::Scalar(ScalarValue::IntervalMonthDayNano(Some(i)))
+            }
+            ArrowPrimitiveValue::IntervalYearMonth(i) => {
+                ColumnarValue::Scalar(ScalarValue::IntervalYearMonth(Some(i)))
+            }
+            ArrowPrimitiveValue::Time32Millisecond(i) => {
+                ColumnarValue::Scalar(ScalarValue::Time32Millisecond(Some(i)))
+            }
+            ArrowPrimitiveValue::Time32Second(i) => {
+                ColumnarValue::Scalar(ScalarValue::Time32Second(Some(i)))
+            }
+            ArrowPrimitiveValue::Time64Microsecond(i) => {
+                ColumnarValue::Scalar(ScalarValue::Time64Microsecond(Some(i)))
+            }
+            ArrowPrimitiveValue::Time64Nanosecond(i) => {
+                ColumnarValue::Scalar(ScalarValue::Time64Nanosecond(Some(i)))
+            }
+            ArrowPrimitiveValue::TimestampMicrosecond(i) => {
+                ColumnarValue::Scalar(ScalarValue::TimestampMicrosecond(Some(i), None))
+            }
+            ArrowPrimitiveValue::TimestampMillisecond(i) => {
+                ColumnarValue::Scalar(ScalarValue::TimestampMillisecond(Some(i), None))
+            }
+            ArrowPrimitiveValue::TimestampNanosecond(i) => {
+                ColumnarValue::Scalar(ScalarValue::TimestampNanosecond(Some(i), None))
+            }
+            ArrowPrimitiveValue::TimestampSecond(i) => {
+                ColumnarValue::Scalar(ScalarValue::TimestampSecond(Some(i), None))
+            }
+            ArrowPrimitiveValue::UInt8(i) => ColumnarValue::Scalar(ScalarValue::UInt8(Some(i))),
+            ArrowPrimitiveValue::UInt16(i) => ColumnarValue::Scalar(ScalarValue::UInt16(Some(i))),
+            ArrowPrimitiveValue::UInt32(i) => ColumnarValue::Scalar(ScalarValue::UInt32(Some(i))),
+            ArrowPrimitiveValue::UInt64(i) => ColumnarValue::Scalar(ScalarValue::UInt64(Some(i))),
+        }
+    }
 }
 
 impl Custom for ArrowPrimitiveValue {}

@@ -17,12 +17,25 @@
     UInt8
     Utf8
     alias
+    arrow-and
+    arrow-and-kleene
+    arrow-and-not
+    arrow-array-as-array-type
+    arrow-max
+    arrow-min
+    arrow-not
+    arrow-of
+    arrow-sum
     case/end
     case/otherwise
     case/when
     case/with-when
     col
     col!=
+    col*
+    col+
+    col-
+    col/
     col/and
     col/case
     col/ilike
@@ -35,6 +48,7 @@
     col=
     col>
     col>=
+    define-udf
     df/aggregate
     df/collect
     df/count
@@ -81,12 +95,25 @@
     UInt8
     Utf8
     alias
+    arrow-and
+    arrow-and-kleene
+    arrow-and-not
+    arrow-array-as-array-type
+    arrow-max
+    arrow-min
+    arrow-not
+    arrow-of
+    arrow-sum
     case/end
     case/otherwise
     case/when
     case/with-when
     col
     col!=
+    col*
+    col+
+    col-
+    col/
     col/and
     col/case
     col/ilike
@@ -99,6 +126,7 @@
     col=
     col>
     col>=
+    define-udf
     df/aggregate
     df/collect
     df/count
