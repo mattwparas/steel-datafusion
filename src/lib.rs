@@ -159,17 +159,85 @@ impl SExpr {
         ))
     }
 
-    // fn array_agg(self) -> SExpr {
-    //     add_builder_fns_to_aggregate(
-    //         datafusion::functions_aggregate::array_agg::array_agg(self.0),
-    //         Some(true),
-    //         None
-    //         None,
-    //         None,
-    //         None,
-    //     )
-    //     .unwrap()
-    // }
+    fn stddev(self) -> SExpr {
+        SExpr(datafusion::functions_aggregate::stddev::stddev(self.0))
+    }
+
+    fn stddev_pop(self) -> SExpr {
+        SExpr(datafusion::functions_aggregate::stddev::stddev_pop(self.0))
+    }
+
+    fn var_sample(self) -> SExpr {
+        SExpr(datafusion::functions_aggregate::variance::var_sample(
+            self.0,
+        ))
+    }
+
+    fn var_pop(self) -> SExpr {
+        SExpr(datafusion::functions_aggregate::variance::var_pop(self.0))
+    }
+
+    fn approx_distinct(self) -> SExpr {
+        SExpr(datafusion::functions_aggregate::approx_distinct::approx_distinct(self.0))
+    }
+
+    fn approx_median(self) -> SExpr {
+        SExpr(datafusion::functions_aggregate::approx_median::approx_median(self.0))
+    }
+
+    fn regr_slope(self, other: SExpr) -> SExpr {
+        SExpr(datafusion::functions_aggregate::regr::regr_slope(
+            self.0, other.0,
+        ))
+    }
+
+    fn regr_intercept(self, other: SExpr) -> SExpr {
+        SExpr(datafusion::functions_aggregate::regr::regr_intercept(
+            self.0, other.0,
+        ))
+    }
+
+    fn regr_count(self, other: SExpr) -> SExpr {
+        SExpr(datafusion::functions_aggregate::regr::regr_count(
+            self.0, other.0,
+        ))
+    }
+
+    fn regr_r2(self, other: SExpr) -> SExpr {
+        SExpr(datafusion::functions_aggregate::regr::regr_r2(
+            self.0, other.0,
+        ))
+    }
+
+    fn regr_avgx(self, other: SExpr) -> SExpr {
+        SExpr(datafusion::functions_aggregate::regr::regr_avgx(
+            self.0, other.0,
+        ))
+    }
+
+    fn regr_avgy(self, other: SExpr) -> SExpr {
+        SExpr(datafusion::functions_aggregate::regr::regr_avgy(
+            self.0, other.0,
+        ))
+    }
+
+    fn regr_sxx(self, other: SExpr) -> SExpr {
+        SExpr(datafusion::functions_aggregate::regr::regr_sxx(
+            self.0, other.0,
+        ))
+    }
+
+    fn regr_syy(self, other: SExpr) -> SExpr {
+        SExpr(datafusion::functions_aggregate::regr::regr_syy(
+            self.0, other.0,
+        ))
+    }
+
+    fn regr_sxy(self, other: SExpr) -> SExpr {
+        SExpr(datafusion::functions_aggregate::regr::regr_sxy(
+            self.0, other.0,
+        ))
+    }
 
     fn array_distinct(self) -> SExpr {
         SExpr(datafusion::functions_array::expr_fn::array_distinct(self.0))
@@ -560,18 +628,34 @@ fn datafusion_module() -> FFIModule {
         .register_fn("col/not-like", SExpr::not_like)
         .register_fn("col/not-ilike", SExpr::not_ilike)
         .register_fn("col/case", SCaseBuilder::case)
+        // Aggregate functions
         .register_fn("col/sum", SExpr::sum)
         .register_fn("col/max", SExpr::max)
         .register_fn("col/min", SExpr::min)
         .register_fn("col/avg", SExpr::avg)
-        .register_fn("col/mean", SExpr::median)
+        .register_fn("col/median", SExpr::median)
+        .register_fn("agg/builder", add_builder_fns_to_aggregate)
+        .register_fn("col/array-distinct", SExpr::array_distinct)
+        .register_fn("col/stddev", SExpr::stddev)
+        .register_fn("col/stddev-pop", SExpr::stddev_pop)
+        .register_fn("col/var-sample", SExpr::var_sample)
+        .register_fn("col/var-pop", SExpr::var_pop)
+        .register_fn("col/approx-distinct", SExpr::approx_distinct)
+        .register_fn("col/approx-median", SExpr::approx_median)
+        .register_fn("col/regr-slope", SExpr::regr_slope)
+        .register_fn("col/regr-intercept", SExpr::regr_intercept)
+        .register_fn("col/regr-count", SExpr::regr_count)
+        .register_fn("col/regr-r2", SExpr::regr_r2)
+        .register_fn("col/regr-agvx", SExpr::regr_avgx)
+        .register_fn("col/regr-avgy", SExpr::regr_avgy)
+        .register_fn("col/regr-sxx", SExpr::regr_sxx)
+        .register_fn("col/regr-syy", SExpr::regr_syy)
+        .register_fn("col/regr-sxy", SExpr::regr_sxy)
+        .register_fn("col/count", SExpr::count)
+        // Others
         .register_fn("col/null?", SExpr::is_null)
         .register_fn("col/not-null?", SExpr::is_not_null)
         .register_fn("col/array-agg", SExpr::array_agg)
-        .register_fn("agg/builder", add_builder_fns_to_aggregate)
-        // .register_fn("col/array-agg-distinct", SExpr::array_agg_distinct)
-        .register_fn("col/array-distinct", SExpr::array_distinct)
-        .register_fn("col/count", SExpr::count)
         .register_fn("case/when", SCaseBuilder::when)
         .register_fn("case/end", SCaseBuilder::end)
         .register_fn("case/with-when", SCaseBuilder::add_when)

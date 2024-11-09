@@ -33,19 +33,29 @@
 (define (sort-by df . cols)
   (df/sort-by df cols))
 
-(define (agg-builder expr
-                     #:distinct [distinct #f]
-                     #:filter [filter #f]
-                     #:order-by [order-by #f]
-                     #:null-treatment [null-treatment #f])
+(define (agg-builder-raw expr
+                         #:distinct [distinct #f]
+                         #:filter [filter #f]
+                         #:order-by [order-by #f]
+                         #:null-treatment [null-treatment #f])
   (agg/builder expr distinct filter order-by null-treatment))
+
+(define (agg-builder func)
+  (lambda (expr . args) (apply agg-builder-raw (cons (func expr) args))))
+
+(define array-agg-def (agg-builder col/array-agg))
+(define count-def (agg-builder col/count))
+(define max-def (agg-builder col/max))
+(define min-def (agg-builder col/min))
+(define avg-def (agg-builder col/avg))
+(define median-def (agg-builder col/median))
 
 (~> df
     (df/filter (col/not-null? (col "Type 2")))
     (df/aggregate (list type-1)
-                  (list (alias (agg-builder (col/array-agg (col "Type 2"))
-                                            #:distinct #true
-                                            #:null-treatment (null-treatment-ignore-nulls))
+                  (list (alias (array-agg-def (col "Type 2")
+                                              #:distinct #true
+                                              #:null-treatment (null-treatment-ignore-nulls))
                                "Type 2 List"))
                   ; (list (alias (col/count type-1) "Type 1 counts")
                   ;       (alias (col/avg (col "Speed")) "Average speed")

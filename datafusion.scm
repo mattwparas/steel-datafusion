@@ -38,6 +38,8 @@
     col-
     col/
     col/and
+    col/approx-distinct
+    col/approx-median
     col/array-agg
     col/array-distinct
     col/avg
@@ -46,14 +48,27 @@
     col/ilike
     col/like
     col/max
-    col/mean
+    col/median
     col/min
     col/not-ilike
     col/not-like
     col/not-null?
     col/null?
     col/or
+    col/regr-agvx
+    col/regr-avgy
+    col/regr-count
+    col/regr-intercept
+    col/regr-r2
+    col/regr-slope
+    col/regr-sxx
+    col/regr-sxy
+    col/regr-syy
+    col/stddev
+    col/stddev-pop
     col/sum
+    col/var-pop
+    col/var-sample
     col<
     col<=
     col=
@@ -129,6 +144,8 @@
     col-
     col/
     col/and
+    col/approx-distinct
+    col/approx-median
     col/array-agg
     col/array-distinct
     col/avg
@@ -137,14 +154,27 @@
     col/ilike
     col/like
     col/max
-    col/mean
+    col/median
     col/min
     col/not-ilike
     col/not-like
     col/not-null?
     col/null?
     col/or
+    col/regr-agvx
+    col/regr-avgy
+    col/regr-count
+    col/regr-intercept
+    col/regr-r2
+    col/regr-slope
+    col/regr-sxx
+    col/regr-sxy
+    col/regr-syy
+    col/stddev
+    col/stddev-pop
     col/sum
+    col/var-pop
+    col/var-sample
     col<
     col<=
     col=
