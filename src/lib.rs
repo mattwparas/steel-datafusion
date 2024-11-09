@@ -4,8 +4,10 @@ use abi_stable::std_types::{RBoxError, RResult, RSliceMut};
 use datafusion::{
     arrow::{
         array::{
-            ArrowPrimitiveType, BooleanArray, Date32Array, DurationNanosecondArray, Float16Array,
-            Float64Array, Int64Array, PrimitiveArray, RecordBatch,
+            ArrowPrimitiveType, AsArray, BooleanArray, Date32Array, DurationNanosecondArray,
+            Float16Array, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array,
+            Int8Array, PrimitiveArray, RecordBatch, UInt16Array, UInt32Array, UInt64Array,
+            UInt8Array,
         },
         compute,
         datatypes::{
@@ -26,12 +28,14 @@ use datafusion::{
         case, col, conditional_expressions::CaseBuilder, create_udf, when, ColumnarValue, Expr,
         ScalarUDF, SortExpr,
     },
+    prelude::ExprFunctionExt,
     scalar::ScalarValue,
 };
 use steel::{
-    rvals::{Custom, CustomType, FromSteelVal, IntoSteelVal},
+    rvals::{Custom, CustomType},
     steel_vm::ffi::{
-        as_underlying_ffi_type, FFIModule, FFIValue, HostRuntimeFunction, IntoFFIVal, RegisterFFIFn,
+        as_underlying_ffi_type, FFIArg, FFIModule, FFIValue, FromFFIArg, HostRuntimeFunction,
+        IntoFFIVal, RegisterFFIFn,
     },
 };
 
@@ -62,8 +66,14 @@ pub struct SExpr(Expr);
 impl Custom for SExpr {}
 
 impl SExpr {
-    fn col(name: String) -> Self {
-        SExpr(col(name))
+    fn col(mut name: String) -> Self {
+        if name.starts_with("\"") && name.ends_with("\"") {
+            SExpr(col(name))
+        } else {
+            name.insert(0, '"');
+            name.push('"');
+            SExpr(col(name))
+        }
     }
 
     fn alias(self, name: String) -> Self {
@@ -117,6 +127,83 @@ impl SExpr {
     fn not_ilike(self, other: SExpr) -> SExpr {
         SExpr(self.0.not_ilike(other.0))
     }
+
+    fn sum(self) -> SExpr {
+        SExpr(datafusion::functions_aggregate::sum::sum(self.0))
+    }
+
+    fn count(self) -> SExpr {
+        SExpr(datafusion::functions_aggregate::count::count(self.0))
+    }
+
+    fn max(self) -> SExpr {
+        SExpr(datafusion::functions_aggregate::min_max::max(self.0))
+    }
+
+    fn min(self) -> SExpr {
+        SExpr(datafusion::functions_aggregate::min_max::min(self.0))
+    }
+
+    fn avg(self) -> SExpr {
+        SExpr(datafusion::functions_aggregate::average::avg(self.0))
+    }
+
+    fn median(self) -> SExpr {
+        SExpr(datafusion::functions_aggregate::median::median(self.0))
+    }
+
+    fn array_agg(self) -> SExpr {
+        SExpr(datafusion::functions_aggregate::array_agg::array_agg(
+            self.0,
+        ))
+    }
+
+    fn array_agg_distinct(self) -> SExpr {
+        add_builder_fns_to_aggregate(
+            datafusion::functions_aggregate::array_agg::array_agg(self.0),
+            Some(true),
+        )
+        .unwrap()
+    }
+
+    fn array_distinct(self) -> SExpr {
+        SExpr(datafusion::functions_array::expr_fn::array_distinct(self.0))
+    }
+}
+
+impl From<DataFusionError> for SDataFusionError {
+    fn from(value: DataFusionError) -> Self {
+        SDataFusionError(value)
+    }
+}
+
+fn add_builder_fns_to_aggregate(
+    agg_fn: Expr,
+    distinct: Option<bool>,
+    // filter: Option<PyExpr>,
+    // order_by: Option<Vec<PySortExpr>>,
+    // null_treatment: Option<NullTreatment>,
+) -> Result<SExpr, SDataFusionError> {
+    // Since ExprFuncBuilder::new() is private, we can guarantee initializing
+    // a builder with an `null_treatment` with option None
+    let mut builder = agg_fn.null_treatment(None);
+
+    // if let Some(order_by_cols) = order_by {
+    //     let order_by_cols = to_sort_expressions(order_by_cols);
+    //     builder = builder.order_by(order_by_cols);
+    // }
+
+    if let Some(true) = distinct {
+        builder = builder.distinct();
+    }
+
+    // if let Some(filter) = filter {
+    //     builder = builder.filter(filter.expr);
+    // }
+
+    // builder = builder.null_treatment(null_treatment.map(DFNullTreatment::from));
+
+    Ok(SExpr(builder.build()?))
 }
 
 #[derive(Clone)]
@@ -456,6 +543,15 @@ fn datafusion_module() -> FFIModule {
         .register_fn("col/not-like", SExpr::not_like)
         .register_fn("col/not-ilike", SExpr::not_ilike)
         .register_fn("col/case", SCaseBuilder::case)
+        .register_fn("col/sum", SExpr::sum)
+        .register_fn("col/max", SExpr::max)
+        .register_fn("col/min", SExpr::max)
+        .register_fn("col/avg", SExpr::avg)
+        .register_fn("col/mean", SExpr::median)
+        .register_fn("col/array-agg", SExpr::array_agg)
+        .register_fn("col/array-agg-distinct", SExpr::array_agg_distinct)
+        .register_fn("col/array-distinct", SExpr::array_distinct)
+        .register_fn("col/count", SExpr::count)
         .register_fn("case/when", SCaseBuilder::when)
         .register_fn("case/end", SCaseBuilder::end)
         .register_fn("case/with-when", SCaseBuilder::add_when)
@@ -576,21 +672,53 @@ impl SColumnarValue {
         match &self.0 {
             ColumnarValue::Array(a) => match kind.0 {
                 DataType::Null => todo!(),
-                DataType::Boolean => todo!(),
-                DataType::Int8 => todo!(),
-                DataType::Int16 => todo!(),
-                DataType::Int32 => todo!(),
+                DataType::Boolean => a
+                    .as_boolean_opt()
+                    .map(|x| SPrimitiveArrayKind::BooleanArray(SBooleanArray(x.clone()))),
+                DataType::Int8 => a
+                    .as_any()
+                    .downcast_ref::<Int8Array>()
+                    .map(|x| SPrimitiveArrayKind::Int8Array(SPrimitiveArray(x.clone()))),
+                DataType::Int16 => a
+                    .as_any()
+                    .downcast_ref::<Int16Array>()
+                    .map(|x| SPrimitiveArrayKind::Int16Array(SPrimitiveArray(x.clone()))),
+                DataType::Int32 => a
+                    .as_any()
+                    .downcast_ref::<Int32Array>()
+                    .map(|x| SPrimitiveArrayKind::Int32Array(SPrimitiveArray(x.clone()))),
                 DataType::Int64 => a
                     .as_any()
                     .downcast_ref::<Int64Array>()
                     .map(|x| SPrimitiveArrayKind::Int64Array(SPrimitiveArray(x.clone()))),
-                DataType::UInt8 => todo!(),
-                DataType::UInt16 => todo!(),
-                DataType::UInt32 => todo!(),
-                DataType::UInt64 => todo!(),
-                DataType::Float16 => todo!(),
-                DataType::Float32 => todo!(),
-                DataType::Float64 => todo!(),
+                DataType::UInt8 => a
+                    .as_any()
+                    .downcast_ref::<UInt8Array>()
+                    .map(|x| SPrimitiveArrayKind::UInt8Array(SPrimitiveArray(x.clone()))),
+                DataType::UInt16 => a
+                    .as_any()
+                    .downcast_ref::<UInt16Array>()
+                    .map(|x| SPrimitiveArrayKind::UInt16Array(SPrimitiveArray(x.clone()))),
+                DataType::UInt32 => a
+                    .as_any()
+                    .downcast_ref::<UInt32Array>()
+                    .map(|x| SPrimitiveArrayKind::UInt32Array(SPrimitiveArray(x.clone()))),
+                DataType::UInt64 => a
+                    .as_any()
+                    .downcast_ref::<UInt64Array>()
+                    .map(|x| SPrimitiveArrayKind::UInt64Array(SPrimitiveArray(x.clone()))),
+                DataType::Float16 => a
+                    .as_any()
+                    .downcast_ref::<Float16Array>()
+                    .map(|x| SPrimitiveArrayKind::Float16Array(SPrimitiveArray(x.clone()))),
+                DataType::Float32 => a
+                    .as_any()
+                    .downcast_ref::<Float32Array>()
+                    .map(|x| SPrimitiveArrayKind::Float32Array(SPrimitiveArray(x.clone()))),
+                DataType::Float64 => a
+                    .as_any()
+                    .downcast_ref::<Float64Array>()
+                    .map(|x| SPrimitiveArrayKind::Float64Array(SPrimitiveArray(x.clone()))),
                 DataType::Timestamp(_, _) => todo!(),
                 DataType::Date32 => todo!(),
                 DataType::Date64 => todo!(),
@@ -629,7 +757,7 @@ fn define_udf(
     types: Vec<ArrowDataType>,
     return_type: ArrowDataType,
     func: HostRuntimeFunction,
-) -> SteelScalarUDF {
+) -> RResult<FFIValue, RBoxError> {
     let udf = create_udf(
         &name,
         types.into_iter().map(|x| x.0).collect(),
@@ -710,7 +838,7 @@ fn define_udf(
     // Register the UDF so that we can... use it?
     session_ctx.0.register_udf(udf.clone());
 
-    SteelScalarUDF(udf)
+    SteelScalarUDF(udf).into_ffi_val()
 }
 
 pub struct SPrimitiveArray<T: ArrowPrimitiveType>(PrimitiveArray<T>);
@@ -860,6 +988,7 @@ impl ArrowPrimitiveValue {
 impl Custom for ArrowPrimitiveValue {}
 
 pub enum SPrimitiveArrayKind {
+    BooleanArray(SBooleanArray),
     Date32(SDate32Array),
     Date64(SDate64Array),
     Decimal128Array(SDecimal128Array),
@@ -1014,6 +1143,8 @@ macro_rules! arrow_function_map {
                 SPrimitiveArrayKind::UInt16Array(a) => $func(&a.0).map(ArrowPrimitiveValue::UInt16),
                 SPrimitiveArrayKind::UInt32Array(a) => $func(&a.0).map(ArrowPrimitiveValue::UInt32),
                 SPrimitiveArrayKind::UInt64Array(a) => $func(&a.0).map(ArrowPrimitiveValue::UInt64),
+                // TODO: Should this raise an error?
+                _ => None,
             }
         }
     };

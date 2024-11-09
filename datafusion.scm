@@ -37,12 +37,21 @@
     col-
     col/
     col/and
+    col/array-agg
+    col/array-agg-distinct
+    col/array-distinct
+    col/avg
     col/case
+    col/count
     col/ilike
     col/like
+    col/max
+    col/mean
+    col/min
     col/not-ilike
     col/not-like
     col/or
+    col/sum
     col<
     col<=
     col=
@@ -115,12 +124,21 @@
     col-
     col/
     col/and
+    col/array-agg
+    col/array-agg-distinct
+    col/array-distinct
+    col/avg
     col/case
+    col/count
     col/ilike
     col/like
+    col/max
+    col/mean
+    col/min
     col/not-ilike
     col/not-like
     col/or
+    col/sum
     col<
     col<=
     col=
