@@ -30,6 +30,7 @@ use datafusion::{
     },
     prelude::ExprFunctionExt,
     scalar::ScalarValue,
+    sql::sqlparser::ast::NullTreatment,
 };
 use steel::{
     rvals::{Custom, CustomType},
@@ -162,6 +163,9 @@ impl SExpr {
         add_builder_fns_to_aggregate(
             datafusion::functions_aggregate::array_agg::array_agg(self.0),
             Some(true),
+            None,
+            None,
+            None,
         )
         .unwrap()
     }
@@ -180,28 +184,28 @@ impl From<DataFusionError> for SDataFusionError {
 fn add_builder_fns_to_aggregate(
     agg_fn: Expr,
     distinct: Option<bool>,
-    // filter: Option<PyExpr>,
-    // order_by: Option<Vec<PySortExpr>>,
-    // null_treatment: Option<NullTreatment>,
+    filter: Option<SExpr>,
+    order_by: Option<Vec<SSortExpr>>,
+    null_treatment: Option<NullTreatment>,
 ) -> Result<SExpr, SDataFusionError> {
     // Since ExprFuncBuilder::new() is private, we can guarantee initializing
     // a builder with an `null_treatment` with option None
     let mut builder = agg_fn.null_treatment(None);
 
-    // if let Some(order_by_cols) = order_by {
-    //     let order_by_cols = to_sort_expressions(order_by_cols);
-    //     builder = builder.order_by(order_by_cols);
-    // }
+    if let Some(order_by_cols) = order_by {
+        let order_by_cols = order_by_cols.into_iter().map(|x| x.0).collect();
+        builder = builder.order_by(order_by_cols);
+    }
 
     if let Some(true) = distinct {
         builder = builder.distinct();
     }
 
-    // if let Some(filter) = filter {
-    //     builder = builder.filter(filter.expr);
-    // }
+    if let Some(filter) = filter {
+        builder = builder.filter(filter.0);
+    }
 
-    // builder = builder.null_treatment(null_treatment.map(DFNullTreatment::from));
+    builder = builder.null_treatment(null_treatment);
 
     Ok(SExpr(builder.build()?))
 }
@@ -545,7 +549,7 @@ fn datafusion_module() -> FFIModule {
         .register_fn("col/case", SCaseBuilder::case)
         .register_fn("col/sum", SExpr::sum)
         .register_fn("col/max", SExpr::max)
-        .register_fn("col/min", SExpr::max)
+        .register_fn("col/min", SExpr::min)
         .register_fn("col/avg", SExpr::avg)
         .register_fn("col/mean", SExpr::median)
         .register_fn("col/array-agg", SExpr::array_agg)
@@ -761,7 +765,7 @@ fn define_udf(
     let udf = create_udf(
         &name,
         types.into_iter().map(|x| x.0).collect(),
-        Arc::new(return_type.0.clone()),
+        return_type.0.clone(),
         datafusion::logical_expr::Volatility::Immutable,
         Arc::new(move |args| {
             let mut columns = args

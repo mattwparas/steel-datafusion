@@ -11,7 +11,7 @@ crate-type = ["rlib", "cdylib"]
 [dependencies]
 # steel-core = { version = "0.6.0", path = "/Users/matt/code/steel/crates/steel-core", features = ["dylibs", "sync"] }
 steel-core = { version = "0.6.0", git = "https://github.com/mattwparas/steel.git", features = ["dylibs", "sync"] }
-datafusion = "42.1.0"
+datafusion = "43.0.0"
 tokio = { version = "1", features = ["full"] }
 abi_stable = "0.11.1"
 regex = { version = "1.10.3" }
