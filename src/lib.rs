@@ -646,7 +646,7 @@ fn datafusion_module() -> FFIModule {
         .register_fn("col/regr-intercept", SExpr::regr_intercept)
         .register_fn("col/regr-count", SExpr::regr_count)
         .register_fn("col/regr-r2", SExpr::regr_r2)
-        .register_fn("col/regr-agvx", SExpr::regr_avgx)
+        .register_fn("col/regr-avgx", SExpr::regr_avgx)
         .register_fn("col/regr-avgy", SExpr::regr_avgy)
         .register_fn("col/regr-sxx", SExpr::regr_sxx)
         .register_fn("col/regr-syy", SExpr::regr_syy)

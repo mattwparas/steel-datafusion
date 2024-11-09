@@ -55,7 +55,7 @@
     col/not-null?
     col/null?
     col/or
-    col/regr-agvx
+    col/regr-avgx
     col/regr-avgy
     col/regr-count
     col/regr-intercept
@@ -161,7 +161,7 @@
     col/not-null?
     col/null?
     col/or
-    col/regr-agvx
+    col/regr-avgx
     col/regr-avgy
     col/regr-count
     col/regr-intercept
