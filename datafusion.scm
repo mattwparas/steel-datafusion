@@ -16,6 +16,7 @@
     UInt64
     UInt8
     Utf8
+    agg/builder
     alias
     arrow-and
     arrow-and-kleene
@@ -38,7 +39,6 @@
     col/
     col/and
     col/array-agg
-    col/array-agg-distinct
     col/array-distinct
     col/avg
     col/case
@@ -50,6 +50,8 @@
     col/min
     col/not-ilike
     col/not-like
+    col/not-null?
+    col/null?
     col/or
     col/sum
     col<
@@ -81,6 +83,8 @@
     df/window
     df/with-column
     df/with-column-renamed
+    null-treatment-ignore-nulls
+    null-treatment-respect-nulls
     read-csv
     session-context
     udf/call
@@ -103,6 +107,7 @@
     UInt64
     UInt8
     Utf8
+    agg/builder
     alias
     arrow-and
     arrow-and-kleene
@@ -125,7 +130,6 @@
     col/
     col/and
     col/array-agg
-    col/array-agg-distinct
     col/array-distinct
     col/avg
     col/case
@@ -137,6 +141,8 @@
     col/min
     col/not-ilike
     col/not-like
+    col/not-null?
+    col/null?
     col/or
     col/sum
     col<
@@ -168,6 +174,8 @@
     df/window
     df/with-column
     df/with-column-renamed
+    null-treatment-ignore-nulls
+    null-treatment-respect-nulls
     read-csv
     session-context
     udf/call

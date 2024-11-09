@@ -159,19 +159,28 @@ impl SExpr {
         ))
     }
 
-    fn array_agg_distinct(self) -> SExpr {
-        add_builder_fns_to_aggregate(
-            datafusion::functions_aggregate::array_agg::array_agg(self.0),
-            Some(true),
-            None,
-            None,
-            None,
-        )
-        .unwrap()
-    }
+    // fn array_agg(self) -> SExpr {
+    //     add_builder_fns_to_aggregate(
+    //         datafusion::functions_aggregate::array_agg::array_agg(self.0),
+    //         Some(true),
+    //         None
+    //         None,
+    //         None,
+    //         None,
+    //     )
+    //     .unwrap()
+    // }
 
     fn array_distinct(self) -> SExpr {
         SExpr(datafusion::functions_array::expr_fn::array_distinct(self.0))
+    }
+
+    fn is_null(self) -> SExpr {
+        SExpr(self.0.is_null())
+    }
+
+    fn is_not_null(self) -> SExpr {
+        SExpr(self.0.is_not_null())
     }
 }
 
@@ -181,12 +190,16 @@ impl From<DataFusionError> for SDataFusionError {
     }
 }
 
+#[derive(Clone)]
+struct SNullTreatment(NullTreatment);
+impl Custom for SNullTreatment {}
+
 fn add_builder_fns_to_aggregate(
-    agg_fn: Expr,
+    SExpr(agg_fn): SExpr,
     distinct: Option<bool>,
     filter: Option<SExpr>,
     order_by: Option<Vec<SSortExpr>>,
-    null_treatment: Option<NullTreatment>,
+    null_treatment: Option<SNullTreatment>,
 ) -> Result<SExpr, SDataFusionError> {
     // Since ExprFuncBuilder::new() is private, we can guarantee initializing
     // a builder with an `null_treatment` with option None
@@ -205,7 +218,7 @@ fn add_builder_fns_to_aggregate(
         builder = builder.filter(filter.0);
     }
 
-    builder = builder.null_treatment(null_treatment);
+    builder = builder.null_treatment(null_treatment.map(|x| x.0));
 
     Ok(SExpr(builder.build()?))
 }
@@ -552,8 +565,11 @@ fn datafusion_module() -> FFIModule {
         .register_fn("col/min", SExpr::min)
         .register_fn("col/avg", SExpr::avg)
         .register_fn("col/mean", SExpr::median)
+        .register_fn("col/null?", SExpr::is_null)
+        .register_fn("col/not-null?", SExpr::is_not_null)
         .register_fn("col/array-agg", SExpr::array_agg)
-        .register_fn("col/array-agg-distinct", SExpr::array_agg_distinct)
+        .register_fn("agg/builder", add_builder_fns_to_aggregate)
+        // .register_fn("col/array-agg-distinct", SExpr::array_agg_distinct)
         .register_fn("col/array-distinct", SExpr::array_distinct)
         .register_fn("col/count", SExpr::count)
         .register_fn("case/when", SCaseBuilder::when)
@@ -562,7 +578,13 @@ fn datafusion_module() -> FFIModule {
         .register_fn("case/otherwise", SCaseBuilder::otherwise)
         .register_fn("alias", SExpr::alias)
         .register_fn("session-context", SSessionContext::new)
-        .register_fn("udf/call", SteelScalarUDF::call);
+        .register_fn("udf/call", SteelScalarUDF::call)
+        .register_fn("null-treatment-ignore-nulls", || {
+            SNullTreatment(NullTreatment::IgnoreNulls)
+        })
+        .register_fn("null-treatment-respect-nulls", || {
+            SNullTreatment(NullTreatment::IgnoreNulls)
+        });
 
     let rt = runtime.clone();
     module.register_fn(

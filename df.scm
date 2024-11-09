@@ -33,9 +33,20 @@
 (define (sort-by df . cols)
   (df/sort-by df cols))
 
+(define (agg-builder expr
+                     #:distinct [distinct #f]
+                     #:filter [filter #f]
+                     #:order-by [order-by #f]
+                     #:null-treatment [null-treatment #f])
+  (agg/builder expr distinct filter order-by null-treatment))
+
 (~> df
+    (df/filter (col/not-null? (col "Type 2")))
     (df/aggregate (list type-1)
-                  (list (alias (col/array-agg-distinct (col "Type 2")) "Type 2 List"))
+                  (list (alias (agg-builder (col/array-agg (col "Type 2"))
+                                            #:distinct #true
+                                            #:null-treatment (null-treatment-ignore-nulls))
+                               "Type 2 List"))
                   ; (list (alias (col/count type-1) "Type 1 counts")
                   ;       (alias (col/avg (col "Speed")) "Average speed")
                   ;       (alias (col/avg (col "Attack")) "Average attack")
