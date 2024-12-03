@@ -3,12 +3,17 @@ name = "steel-datafusion"
 version = "0.1.0"
 edition = "2021"
 
+
+[lib]
+name = "steel_datafusion"
+crate-type = ["rlib", "cdylib"]
+
 [dependencies]
-steel-core = { version = "0.6.0", git = "https://github.com/mattwparas/steel.git", features = ["dylibs", "markdown", "stacker", "dylib-build", "sync"], branch = "mwp-expose-vm-methods" }
-# steel-core = { version = "0.6.0", path = "/home/matt/code/steel/crates/steel-core", features = ["dylibs", "markdown", "stacker", "dylib-build", "sync"] }
-steel-repl = { version = "0.6.0", git = "https://github.com/mattwparas/steel.git", branch = "mwp-expose-vm-methods" }
-# steel-repl = { version = "0.6.0", path = "/home/matt/code/steel/crates/steel-repl" }
-datafusion = "42.0.0"
+# steel-core = { version = "0.6.0", path = "/Users/matt/code/steel/crates/steel-core", features = ["dylibs", "sync"] }
+steel-core = { version = "0.6.0", git = "https://github.com/mattwparas/steel.git", features = ["dylibs", "sync"] }
+datafusion = "43.0.0"
 tokio = { version = "1", features = ["full"] }
+abi_stable = "0.11.1"
+regex = { version = "1.10.3" }
 
 
